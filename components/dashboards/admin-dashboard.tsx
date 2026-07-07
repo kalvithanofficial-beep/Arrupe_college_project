@@ -242,51 +242,86 @@ function ManageUsers() {
       toast({ title: 'Password too short', description: 'Minimum 8 characters.', variant: 'destructive' });
       return;
     }
+
     setCreating(true);
-    const { data: { session } } = await supabase.auth.getSession();
-    const res = await fetch(`${process.env.NEXT_PUBLIC_SUPABASE_URL}/functions/v1/manage-user`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${session!.access_token}`,
-      },
-      body: JSON.stringify({
-        action: 'create',
-        email: newUser.email,
-        password: newUser.password,
-        role: newUser.role,
-        fullName: newUser.fullName,
-        phone: newUser.phone,
-      }),
-    });
-    const data = await res.json();
-    setCreating(false);
-    if (!res.ok) {
-      toast({ title: 'Failed to create user', description: data.error, variant: 'destructive' });
-      return;
+
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      const accessToken = session?.access_token;
+
+      if (!accessToken) {
+        toast({ title: 'Authentication required', description: 'Please sign in again to manage users.', variant: 'destructive' });
+        return;
+      }
+
+      const res = await fetch(`${process.env.NEXT_PUBLIC_SUPABASE_URL}/functions/v1/manage-user`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${accessToken}`,
+        },
+        body: JSON.stringify({
+          action: 'create',
+          email: newUser.email,
+          password: newUser.password,
+          role: newUser.role,
+          fullName: newUser.fullName,
+          phone: newUser.phone,
+        }),
+      });
+
+      const data = await res.json().catch(() => ({}));
+      console.error('[manage-user:create]', data);
+
+      if (!res.ok) {
+        toast({ title: 'Failed to create user', description: data.error || 'Unexpected error while creating user.', variant: 'destructive' });
+        return;
+      }
+
+      toast({ title: 'User created', description: `${newUser.fullName} added as ${newUser.role}` });
+      setCreateOpen(false);
+      setNewUser({ email: '', password: '', role: 'teacher', fullName: '', phone: '' });
+      await load();
+    } catch (error: any) {
+      console.error('[manage-user:create] request failed', error);
+      toast({ title: 'Failed to create user', description: error?.message || 'Network error while creating user.', variant: 'destructive' });
+    } finally {
+      setCreating(false);
     }
-    toast({ title: 'User created', description: `${newUser.fullName} added as ${newUser.role}` });
-    setCreateOpen(false);
-    setNewUser({ email: '', password: '', role: 'teacher', fullName: '', phone: '' });
-    load();
   };
 
   const toggleStatus = async (userId: string, currentStatus: string) => {
     const newStatus = currentStatus === 'active' ? 'inactive' : 'active';
-    const { data: { session } } = await supabase.auth.getSession();
-    const res = await fetch(`${process.env.NEXT_PUBLIC_SUPABASE_URL}/functions/v1/manage-user`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${session!.access_token}`,
-      },
-      body: JSON.stringify({ action: 'update_status', userId, status: newStatus }),
-    });
-    if (res.ok) {
-      toast({ title: `User ${newStatus === 'active' ? 'activated' : 'deactivated'}` });
-      load();
-    } else {
-      toast({ title: 'Failed to update', variant: 'destructive' });
+
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      const accessToken = session?.access_token;
+
+      if (!accessToken) {
+        toast({ title: 'Authentication required', description: 'Please sign in again to manage users.', variant: 'destructive' });
+        return;
+      }
+
+      const res = await fetch(`${process.env.NEXT_PUBLIC_SUPABASE_URL}/functions/v1/manage-user`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${accessToken}`,
+        },
+        body: JSON.stringify({ action: 'update_status', userId, status: newStatus }),
+      });
+      const data = await res.json().catch(() => ({}));
+      console.error('[manage-user:update_status]', data);
+
+      if (res.ok) {
+        toast({ title: `User ${newStatus === 'active' ? 'activated' : 'deactivated'}` });
+        await load();
+      } else {
+        toast({ title: 'Failed to update', description: data.error || 'Unexpected error while updating user.', variant: 'destructive' });
+      }
+    } catch (error: any) {
+      console.error('[manage-user:update_status] request failed', error);
+      toast({ title: 'Failed to update', description: error?.message || 'Network error while updating user.', variant: 'destructive' });
     }
   };
 
@@ -295,21 +330,37 @@ function ManageUsers() {
       toast({ title: 'Password too short', variant: 'destructive' });
       return;
     }
-    const { data: { session } } = await supabase.auth.getSession();
-    const res = await fetch(`${process.env.NEXT_PUBLIC_SUPABASE_URL}/functions/v1/manage-user`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${session!.access_token}`,
-      },
-      body: JSON.stringify({ action: 'reset_password', userId, newPassword: resetPwd }),
-    });
-    if (res.ok) {
-      toast({ title: 'Password reset', description: 'User can now sign in with the new password.' });
-      setResetOpen(null);
-      setResetPwd('');
-    } else {
-      toast({ title: 'Failed to reset', variant: 'destructive' });
+
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      const accessToken = session?.access_token;
+
+      if (!accessToken) {
+        toast({ title: 'Authentication required', description: 'Please sign in again to manage users.', variant: 'destructive' });
+        return;
+      }
+
+      const res = await fetch(`${process.env.NEXT_PUBLIC_SUPABASE_URL}/functions/v1/manage-user`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${accessToken}`,
+        },
+        body: JSON.stringify({ action: 'reset_password', userId, newPassword: resetPwd }),
+      });
+      const data = await res.json().catch(() => ({}));
+      console.error('[manage-user:reset_password]', data);
+
+      if (res.ok) {
+        toast({ title: 'Password reset', description: 'User can now sign in with the new password.' });
+        setResetOpen(null);
+        setResetPwd('');
+      } else {
+        toast({ title: 'Failed to reset', description: data.error || 'Unexpected error while resetting password.', variant: 'destructive' });
+      }
+    } catch (error: any) {
+      console.error('[manage-user:reset_password] request failed', error);
+      toast({ title: 'Failed to reset', description: error?.message || 'Network error while resetting password.', variant: 'destructive' });
     }
   };
 

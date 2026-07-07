@@ -181,14 +181,24 @@ function ManageInvoices() {
 
   const load = useCallback(async () => {
     setLoading(true);
-    const [inv, stu] = await Promise.all([
-      supabase.from('invoices').select('*, students(full_name, admission_number, classes(name))').order('created_at', { ascending: false }),
-      supabase.from('students').select('*, classes(name)'),
-    ]);
-    setInvoices((inv.data as any) ?? []);
-    setStudents((stu.data as any) ?? []);
-    setLoading(false);
-  }, []);
+    try {
+      const [inv, stu] = await Promise.all([
+        supabase.from('invoices').select('*, students(full_name, admission_number, classes(name))').order('created_at', { ascending: false }),
+        supabase.from('students').select('*, classes(name)'),
+      ]);
+
+      if (inv.error) throw inv.error;
+      if (stu.error) throw stu.error;
+
+      setInvoices((inv.data as any) ?? []);
+      setStudents((stu.data as any) ?? []);
+    } catch (error: any) {
+      console.error('[accountant/invoices] load failed', error);
+      toast({ title: 'Unable to load invoices', description: error?.message || 'Please check your access permissions.', variant: 'destructive' });
+    } finally {
+      setLoading(false);
+    }
+  }, [toast]);
 
   useEffect(() => { load(); }, [load]);
 
@@ -382,14 +392,24 @@ function ManagePayments() {
 
   const load = useCallback(async () => {
     setLoading(true);
-    const [pmt, inv] = await Promise.all([
-      supabase.from('payments').select('*, students(full_name, admission_number), invoices(invoice_number, total_amount, amount_paid, status)').order('payment_date', { ascending: false }),
-      supabase.from('invoices').select('*, students(full_name)').in('status', ['unpaid', 'partial']).order('created_at', { ascending: false }),
-    ]);
-    setPayments((pmt.data as any) ?? []);
-    setInvoices((inv.data as any) ?? []);
-    setLoading(false);
-  }, []);
+    try {
+      const [pmt, inv] = await Promise.all([
+        supabase.from('payments').select('*, students(full_name, admission_number), invoices(invoice_number, total_amount, amount_paid, status)').order('payment_date', { ascending: false }),
+        supabase.from('invoices').select('*, students(full_name)').in('status', ['unpaid', 'partial']).order('created_at', { ascending: false }),
+      ]);
+
+      if (pmt.error) throw pmt.error;
+      if (inv.error) throw inv.error;
+
+      setPayments((pmt.data as any) ?? []);
+      setInvoices((inv.data as any) ?? []);
+    } catch (error: any) {
+      console.error('[accountant/payments] load failed', error);
+      toast({ title: 'Unable to load payments', description: error?.message || 'Please check your access permissions.', variant: 'destructive' });
+    } finally {
+      setLoading(false);
+    }
+  }, [toast]);
 
   useEffect(() => { load(); }, [load]);
 
