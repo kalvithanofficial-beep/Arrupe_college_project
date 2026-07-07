@@ -12,7 +12,7 @@ import { useToast } from '@/hooks/use-toast';
 
 export default function LoginPage() {
   const router = useRouter();
-  const { user, profile, loading, setAuthState } = useAuth();
+  const { user, profile, loading, signIn } = useAuth();
   const { toast } = useToast();
 
   const [email, setEmail] = useState('');
@@ -33,43 +33,14 @@ export default function LoginPage() {
     setSubmitting(true);
 
     try {
-      const response = await fetch('/api/auth/login', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ email, password }),
-      });
-
-      const data = await response.json().catch(() => ({}));
-
-      if (!response.ok || data.status !== 'Success') {
-        setError(data.message || 'Unable to sign in. Please try again.');
+      const result = await signIn(email, password);
+      if (result.error) {
+        setError(result.error);
         setSubmitting(false);
         return;
       }
 
-      const role = String(data.user?.role || 'student').toLowerCase();
-      const normalizedRole = role === 'admin' ? 'admin' : role;
-      const nextProfile = {
-        id: data.user?.id || email,
-        email: data.user?.email || email,
-        role: normalizedRole,
-        full_name: data.user?.name || email,
-        status: 'active',
-      } as any;
-
-      const nextUser = {
-        id: nextProfile.id,
-        email: nextProfile.email,
-        app_metadata: { provider: 'email' },
-        user_metadata: { full_name: nextProfile.full_name },
-        aud: 'authenticated',
-        created_at: new Date().toISOString(),
-      } as any;
-
-      setAuthState(nextUser, nextProfile, null, false);
-
+      const normalizedRole = result.role === 'admin' ? 'admin' : (result.role ?? 'student');
       toast({ title: 'Welcome back!', description: `Signed in as ${normalizedRole}` });
       router.replace(`/dashboard/${normalizedRole}`);
     } catch {

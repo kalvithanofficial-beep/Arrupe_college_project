@@ -41,7 +41,6 @@ const NAV_ITEMS: NavItem[] = [
   { id: 'classes', label: 'Classes & Teachers', icon: UserCog, roles: ['admin'] },
   { id: 'notices', label: 'Notice Board', icon: Megaphone, roles: ['admin'] },
   { id: 'substitutions', label: 'Substitutions', icon: CalendarDays, roles: ['admin'] },
-  { id: 'invoices', label: 'Invoices', icon: Receipt, roles: ['accountant', 'admin'] },
   { id: 'payments', label: 'Payments', icon: Receipt, roles: ['accountant', 'admin'] },
   { id: 'attendance', label: 'Attendance', icon: ClipboardCheck, roles: ['teacher'] },
   { id: 'marks', label: 'Marks Entry', icon: BookOpen, roles: ['teacher'] },

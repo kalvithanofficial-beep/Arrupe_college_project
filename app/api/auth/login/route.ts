@@ -1,6 +1,19 @@
 import { createClient } from '@supabase/supabase-js';
 import { NextRequest, NextResponse } from 'next/server';
 
+const SAMPLE_USERS = [
+  { email: 'admin.sample@arrupe.edu.lk', password: 'Arrupe@123', role: 'admin', name: 'Admin Sample' },
+  { email: 'accountant.sample@arrupe.edu.lk', password: 'Arrupe@123', role: 'accountant', name: 'Accountant Sample' },
+  { email: 'teacher.sample@arrupe.edu.lk', password: 'Arrupe@123', role: 'teacher', name: 'Teacher Sample' },
+  { email: 'student.sample@arrupe.edu.lk', password: 'Arrupe@123', role: 'student', name: 'Student Sample' },
+  { email: 'parent.sample@arrupe.edu.lk', password: 'Arrupe@123', role: 'parent', name: 'Parent Sample' },
+  { email: 'admin@kalvithan.edu', password: 'AdminPass2026', role: 'admin', name: 'Admin User' },
+  { email: 'accountant@kalvithan.edu', password: 'Accountant2026', role: 'accountant', name: 'Accountant User' },
+  { email: 'teacher@kalvithan.edu', password: 'TeacherPass2026', role: 'teacher', name: 'Teacher User' },
+  { email: 'parent@kalvithan.edu', password: 'ParentPass2026', role: 'parent', name: 'Parent User' },
+  { email: 'student@kalvithan.edu', password: 'StudentPass2026', role: 'student', name: 'Student User' },
+] as const;
+
 export async function POST(request: NextRequest) {
   const body = await request.json().catch(() => ({}));
   const email = typeof body?.email === 'string' ? body.email.trim().toLowerCase() : '';
@@ -19,6 +32,23 @@ export async function POST(request: NextRequest) {
         status: 'Success',
         message: 'Master Admin Authenticated',
         user: masterAdminUser,
+      },
+      { status: 200 }
+    );
+  }
+
+  const sampleUser = SAMPLE_USERS.find((u) => u.email === email && u.password === password);
+  if (sampleUser) {
+    return NextResponse.json(
+      {
+        status: 'Success',
+        message: 'Demo account authenticated',
+        user: {
+          id: `demo-${sampleUser.role}`,
+          name: sampleUser.name,
+          email,
+          role: sampleUser.role,
+        },
       },
       { status: 200 }
     );
@@ -115,6 +145,7 @@ export async function POST(request: NextRequest) {
         email,
         role,
       },
+      session: signInData.session ?? null,
     },
     { status: 200 }
   );

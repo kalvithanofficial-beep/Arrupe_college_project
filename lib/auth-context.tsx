@@ -10,13 +10,21 @@ interface AuthContextValue {
   profile: Profile | null;
   session: Session | null;
   loading: boolean;
-  signIn: (email: string, password: string) => Promise<{ error: string | null }>;
+  signIn: (email: string, password: string) => Promise<{ error: string | null; role?: Profile['role'] }>;
   signOut: () => Promise<void>;
   refreshProfile: () => Promise<void>;
   setAuthState: (nextUser: User | null, nextProfile: Profile | null, nextSession?: Session | null, nextLoading?: boolean) => void;
 }
 
 const AUTH_STORAGE_KEY = 'arrupe-auth-session';
+
+const DEMO_USERS = [
+  { email: 'admin.sample@arrupe.edu.lk', password: 'Arrupe@123', role: 'admin' as const, name: 'Admin Sample' },
+  { email: 'accountant.sample@arrupe.edu.lk', password: 'Arrupe@123', role: 'accountant' as const, name: 'Accountant Sample' },
+  { email: 'teacher.sample@arrupe.edu.lk', password: 'Arrupe@123', role: 'teacher' as const, name: 'Teacher Sample' },
+  { email: 'student.sample@arrupe.edu.lk', password: 'Arrupe@123', role: 'student' as const, name: 'Student Sample' },
+  { email: 'parent.sample@arrupe.edu.lk', password: 'Arrupe@123', role: 'parent' as const, name: 'Parent Sample' },
+];
 
 const AuthContext = createContext<AuthContextValue | undefined>(undefined);
 
@@ -175,13 +183,44 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, [loadProfile, syncAuthState]);
 
   const signIn = async (email: string, password: string) => {
-    const isMasterFallback = email === 'kalvithanschool@gmail.com' && password === 'Kalvithan@School2026';
-    if (isMasterFallback) {
-      return { error: null };
+    const normalizedEmail = email.trim().toLowerCase();
+
+    const response = await fetch('/api/auth/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email: normalizedEmail, password }),
+    });
+
+    const data = await response.json().catch(() => ({} as any));
+
+    if (!response.ok || data.status !== 'Success' || !data.user) {
+      return { error: data.message || 'Unable to sign in. Please try again.' };
     }
 
-    const { error } = await supabase.auth.signInWithPassword({ email, password });
-    return { error: error?.message ?? null };
+    const role = typeof data.user.role === 'string' ? data.user.role.toLowerCase() : 'student';
+    const nextProfile = {
+      id: data.user.id ?? normalizedEmail,
+      email: data.user.email ?? normalizedEmail,
+      role: role as Profile['role'],
+      full_name: data.user.name ?? data.user.full_name ?? normalizedEmail,
+      status: 'active',
+    } as Profile;
+
+    const nextUser = {
+      id: nextProfile.id,
+      email: nextProfile.email,
+      app_metadata: { provider: 'email' },
+      user_metadata: { full_name: nextProfile.full_name },
+      aud: 'authenticated',
+      created_at: new Date().toISOString(),
+    } as User;
+
+    if (data.session) {
+      await supabase.auth.setSession(data.session);
+    }
+
+    syncAuthState(nextUser, nextProfile, data.session ?? null, false);
+    return { error: null, role: nextProfile.role };
   };
 
   const signOut = async () => {

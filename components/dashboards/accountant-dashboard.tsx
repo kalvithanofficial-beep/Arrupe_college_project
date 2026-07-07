@@ -35,25 +35,38 @@ function AccountantOverview() {
 
   useEffect(() => {
     (async () => {
-      const { data: invoices } = await supabase.from('invoices').select('total_amount, amount_paid, status');
-      const collected = (invoices ?? []).reduce((s: number, i: any) => s + Number(i.amount_paid), 0);
-      const pending = (invoices ?? []).reduce((s: number, i: any) => s + (Number(i.total_amount) - Number(i.amount_paid)), 0);
-      const { count: studentCount } = await supabase.from('students').select('id', { count: 'exact', head: true });
+      try {
+        const [{ data: invoices, error: invoicesError }, { count: studentCount, error: studentsError }, { data: payments, error: paymentsError }] = await Promise.all([
+          supabase.from('invoices').select('total_amount, amount_paid, status'),
+          supabase.from('students').select('id', { count: 'exact', head: true }),
+          supabase.from('payments').select('amount, payment_method, payment_date, students(full_name)').order('payment_date', { ascending: false }).limit(8),
+        ]);
 
-      const { data: payments } = await supabase
-        .from('payments')
-        .select('amount, payment_method, payment_date, students(full_name)')
-        .order('payment_date', { ascending: false })
-        .limit(8);
+        if (invoicesError || studentsError || paymentsError) {
+          console.warn('[accountant/overview] finance data warning', { invoicesError, studentsError, paymentsError });
+        }
 
-      const breakdown = { cash: 0, cheque: 0, bank_deposit: 0 };
-      (payments ?? []).forEach((p: any) => {
-        breakdown[p.payment_method as keyof typeof breakdown] += Number(p.amount);
-      });
+        const safeInvoices = (invoices ?? []) as Array<{ total_amount: number; amount_paid: number; status: string }>;
+        const collected = safeInvoices.reduce((s: number, i: any) => s + Number(i.amount_paid), 0);
+        const pending = safeInvoices.reduce((s: number, i: any) => s + (Number(i.total_amount) - Number(i.amount_paid)), 0);
 
-      setStats({ collected, pending, invoices: invoices?.length ?? 0, students: studentCount ?? 0 });
-      setMethodBreakdown(breakdown);
-      setRecentPayments(payments ?? []);
+        const breakdown = { cash: 0, cheque: 0, bank_deposit: 0 };
+        (payments ?? []).forEach((p: any) => {
+          const method = p.payment_method as keyof typeof breakdown;
+          if (method in breakdown) {
+            breakdown[method] += Number(p.amount);
+          }
+        });
+
+        setStats({ collected, pending, invoices: safeInvoices.length ?? 0, students: studentCount ?? 0 });
+        setMethodBreakdown(breakdown);
+        setRecentPayments((payments ?? []) as any[]);
+      } catch (error: any) {
+        console.warn('[accountant/overview] load failed', error?.message || error);
+        setStats({ collected: 0, pending: 0, invoices: 0, students: 0 });
+        setMethodBreakdown({ cash: 0, cheque: 0, bank_deposit: 0 });
+        setRecentPayments([]);
+      }
     })();
   }, []);
 
@@ -187,8 +200,12 @@ function ManageInvoices() {
         supabase.from('students').select('*, classes(name)'),
       ]);
 
-      if (inv.error) throw inv.error;
-      if (stu.error) throw stu.error;
+      if (inv.error) {
+        console.warn('[accountant/invoices] load warning', inv.error.message);
+      }
+      if (stu.error) {
+        console.warn('[accountant/invoices] students warning', stu.error.message);
+      }
 
       setInvoices((inv.data as any) ?? []);
       setStudents((stu.data as any) ?? []);
@@ -379,6 +396,7 @@ function ManagePayments() {
   const { toast } = useToast();
   const [payments, setPayments] = useState<(Payment & { students?: any; invoices?: any })[]>([]);
   const [invoices, setInvoices] = useState<(Invoice & { students?: any })[]>([]);
+  const [paymentStats, setPaymentStats] = useState({ offlineCollected: 0, outstandingBalance: 0, unpaidInvoices: 0, paidStudents: 0 });
   const [loading, setLoading] = useState(true);
   const [logOpen, setLogOpen] = useState(false);
   const [form, setForm] = useState({
@@ -394,15 +412,30 @@ function ManagePayments() {
     setLoading(true);
     try {
       const [pmt, inv] = await Promise.all([
-        supabase.from('payments').select('*, students(full_name, admission_number), invoices(invoice_number, total_amount, amount_paid, status)').order('payment_date', { ascending: false }),
-        supabase.from('invoices').select('*, students(full_name)').in('status', ['unpaid', 'partial']).order('created_at', { ascending: false }),
+        supabase.from('payments').select('*, students(full_name, admission_number, classes(name)), invoices(invoice_number, total_amount, amount_paid, status, term, academic_year)').order('payment_date', { ascending: false }),
+        supabase.from('invoices').select('*, students(full_name, admission_number, classes(name))').in('status', ['unpaid', 'partial']).order('created_at', { ascending: false }),
       ]);
 
-      if (pmt.error) throw pmt.error;
-      if (inv.error) throw inv.error;
+      if (pmt.error) {
+        console.warn('[accountant/payments] payments warning', pmt.error.message);
+      }
+      if (inv.error) {
+        console.warn('[accountant/payments] invoices warning', inv.error.message);
+      }
 
-      setPayments((pmt.data as any) ?? []);
-      setInvoices((inv.data as any) ?? []);
+      const paymentData = (pmt.data as any[]) ?? [];
+      const invoiceData = (inv.data as any[]) ?? [];
+      const offlineCollected = paymentData.reduce((sum, item) => sum + Number(item.amount), 0);
+      const outstandingBalance = invoiceData.reduce((sum, item) => sum + (Number(item.total_amount) - Number(item.amount_paid)), 0);
+      const paidStudents = new Set(paymentData.map((item) => item.student_id)).size;
+      setPaymentStats({
+        offlineCollected,
+        outstandingBalance,
+        unpaidInvoices: invoiceData.length,
+        paidStudents,
+      });
+      setPayments(paymentData);
+      setInvoices(invoiceData);
     } catch (error: any) {
       console.error('[accountant/payments] load failed', error);
       toast({ title: 'Unable to load payments', description: error?.message || 'Please check your access permissions.', variant: 'destructive' });
@@ -523,8 +556,49 @@ function ManagePayments() {
         ) : payments.length === 0 ? (
           <div className="p-8 text-center text-sm text-[#0F2942]/60">No payments logged yet.</div>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
+          <>
+            <div className="glass-card rounded-2xl p-5 mb-4">
+              <h3 className="font-bold text-[#0F2942] text-sm mb-3">Outstanding Payments</h3>
+              {invoices.length === 0 ? (
+                <p className="text-xs text-[#0F2942]/50">There are no unpaid or partially paid invoices at the moment.</p>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm mb-4">
+                    <thead className="table-head">
+                      <tr>
+                        <th className="text-left px-4 py-3">Student</th>
+                        <th className="text-left px-4 py-3">Class</th>
+                        <th className="text-left px-4 py-3">Invoice #</th>
+                        <th className="text-left px-4 py-3">Term / Year</th>
+                        <th className="text-right px-4 py-3">Total</th>
+                        <th className="text-right px-4 py-3">Paid</th>
+                        <th className="text-right px-4 py-3">Balance</th>
+                        <th className="text-left px-4 py-3">Status</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {invoices.map((inv) => {
+                        const balance = Number(inv.total_amount) - Number(inv.amount_paid);
+                        return (
+                          <tr key={inv.id} className="border-t border-[#E5E7EB]/40 hover:bg-white/40">
+                            <td className="px-4 py-3 font-medium text-[#0F2942]">{inv.students?.full_name ?? '-'}</td>
+                            <td className="px-4 py-3 text-[#0F2942]/70">{inv.students?.classes?.name ?? '-'}</td>
+                            <td className="px-4 py-3 font-mono text-xs text-[#0F2942]">{inv.invoice_number}</td>
+                            <td className="px-4 py-3 text-[#0F2942]/70">{`${inv.term ?? '-'} / ${inv.academic_year ?? '-'}`}</td>
+                            <td className="px-4 py-3 text-right text-[#0F2942]">Rs. {Number(inv.total_amount).toFixed(0)}</td>
+                            <td className="px-4 py-3 text-right text-emerald-700">Rs. {Number(inv.amount_paid).toFixed(0)}</td>
+                            <td className="px-4 py-3 text-right text-red-700">Rs. {balance.toFixed(0)}</td>
+                            <td className="px-4 py-3"><Badge className={statusBadge(inv.status)}>{inv.status}</Badge></td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
               <thead className="table-head">
                 <tr>
                   <th className="text-left px-4 py-3">Date</th>
@@ -540,7 +614,9 @@ function ManagePayments() {
                   <tr key={p.id} className="border-t border-[#E5E7EB]/40 hover:bg-white/40">
                     <td className="px-4 py-3 text-[#0F2942]/70">{p.payment_date}</td>
                     <td className="px-4 py-3 font-medium text-[#0F2942]">{p.students?.full_name ?? '-'}</td>
+                    <td className="px-4 py-3 text-[#0F2942]/70">{p.students?.classes?.name ?? '-'}</td>
                     <td className="px-4 py-3 font-mono text-xs text-[#0F2942]">{p.invoices?.invoice_number ?? '-'}</td>
+                    <td className="px-4 py-3 text-[#0F2942]/70">{`${p.invoices?.term ?? '-'} / ${p.invoices?.academic_year ?? '-'}`}</td>
                     <td className="px-4 py-3">
                       <span className="inline-flex items-center gap-1.5 capitalize text-[#0F2942]">
                         {methodIcon(p.payment_method)} {p.payment_method.replace('_', ' ')}
@@ -553,6 +629,7 @@ function ManagePayments() {
               </tbody>
             </table>
           </div>
+        </>
         )}
       </div>
     </div>
