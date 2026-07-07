@@ -1,0 +1,140 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 40 33% 98%;
+    --foreground: 215 65% 12%;
+    --card: 40 33% 99%;
+    --card-foreground: 215 65% 12%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 215 65% 12%;
+    --primary: 22 80% 52%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 215 30% 92%;
+    --secondary-foreground: 215 65% 15%;
+    --muted: 215 20% 94%;
+    --muted-foreground: 215 15% 45%;
+    --accent: 22 80% 52%;
+    --accent-foreground: 0 0% 100%;
+    --destructive: 0 84% 55%;
+    --destructive-foreground: 0 0% 98%;
+    --border: 215 15% 88%;
+    --input: 215 15% 90%;
+    --ring: 22 80% 52%;
+    --radius: 0.75rem;
+
+    /* ARRUPE custom tokens */
+    --royal: #0F2942;
+    --royal-light: #1a3a5e;
+    --amber: #D95D16;
+    --amber-light: #e8732c;
+    --ivory: #FAF8F3;
+    --gray-border: #E5E7EB;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-[#FAF8F3] text-[#0F2942] antialiased;
+    font-family: 'Inter', sans-serif;
+  }
+
+  ::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+  ::-webkit-scrollbar-track {
+    background: #FAF8F3;
+  }
+  ::-webkit-scrollbar-thumb {
+    background: #D95D16;
+    border-radius: 3px;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: #b54d10;
+  }
+}
+
+@layer components {
+  /* ARRUPE sidebar - Deep Royal Blue */
+  .sidebar {
+    background: linear-gradient(180deg, #0F2942 0%, #0a1d33 100%);
+  }
+
+  /* Glass card - clean white with subtle gray border */
+  .glass-card {
+    @apply bg-white/80 backdrop-blur-xl border border-[#E5E7EB] shadow-sm;
+  }
+
+  /* Amber button */
+  .btn-amber {
+    @apply bg-[#D95D16] text-white font-semibold rounded-xl px-5 py-2.5 transition-all duration-200 hover:bg-[#b54d10] hover:shadow-lg hover:shadow-[#D95D16]/30 active:scale-95;
+  }
+
+  /* Royal button */
+  .btn-royal {
+    @apply bg-[#0F2942] text-white font-semibold rounded-xl px-5 py-2.5 transition-all duration-200 hover:bg-[#1a3a5e] active:scale-95;
+  }
+
+  /* Stat card */
+  .stat-card {
+    @apply glass-card rounded-2xl p-6 hover:shadow-md transition-all duration-200;
+  }
+
+  /* Critical alert banner */
+  .critical-banner {
+    animation: criticalPulse 2s ease-in-out infinite;
+    @apply bg-red-600 text-white px-4 py-3 rounded-xl font-semibold text-sm;
+  }
+
+  /* Table header - Royal Blue */
+  .table-head {
+    @apply bg-[#0F2942] text-white text-xs font-semibold uppercase tracking-wider;
+  }
+
+  /* Badge variants */
+  .badge-present  { @apply bg-emerald-100 text-emerald-800 border border-emerald-200; }
+  .badge-absent   { @apply bg-red-100 text-red-800 border border-red-200; }
+  .badge-late     { @apply bg-yellow-100 text-yellow-800 border border-yellow-200; }
+  .badge-paid     { @apply bg-emerald-100 text-emerald-800 border border-emerald-200; }
+  .badge-partial  { @apply bg-blue-100 text-blue-800 border border-blue-200; }
+  .badge-unpaid   { @apply bg-red-100 text-red-800 border border-red-200; }
+  .badge-holiday  { @apply bg-orange-100 text-orange-800 border border-orange-200; }
+  .badge-sports   { @apply bg-sky-100 text-sky-800 border border-sky-200; }
+  .badge-exam     { @apply bg-indigo-100 text-indigo-800 border border-indigo-200; }
+  .badge-general  { @apply bg-gray-100 text-gray-800 border border-gray-200; }
+  .badge-urgent   { @apply bg-red-100 text-red-800 border border-red-200; }
+}
+
+@layer utilities {
+  .text-royal   { color: #0F2942; }
+  .text-arrupe   { color: #D95D16; }
+  .bg-royal      { background-color: #0F2942; }
+  .bg-arrupe     { background-color: #D95D16; }
+  .bg-ivory      { background-color: #FAF8F3; }
+  .border-royal  { border-color: #0F2942; }
+  .border-arrupe { border-color: #D95D16; }
+}
+
+@keyframes criticalPulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.75; }
+}
+
+@keyframes slideIn {
+  from { transform: translateX(-20px); opacity: 0; }
+  to   { transform: translateX(0); opacity: 1; }
+}
+
+@keyframes fadeUp {
+  from { transform: translateY(16px); opacity: 0; }
+  to   { transform: translateY(0); opacity: 1; }
+}
+
+.animate-slide-in { animation: slideIn 0.3s ease forwards; }
+.animate-fade-up  { animation: fadeUp 0.4s ease forwards; }
