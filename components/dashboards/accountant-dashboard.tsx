@@ -635,3 +635,5 @@ function ManagePayments() {
     </div>
   );
 }
+
+export { ManagePayments };

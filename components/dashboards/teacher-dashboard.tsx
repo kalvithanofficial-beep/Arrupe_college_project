@@ -218,61 +218,78 @@ function AttendanceGrid() {
         </div>
       )}
 
-      <div className="glass-card rounded-2xl overflow-hidden">
+      <div className="glass-card rounded-2xl p-6">
         {loading ? (
           <div className="p-8 text-center"><Loader2 className="w-6 h-6 animate-spin mx-auto text-[#D95D16]" /></div>
         ) : students.length === 0 ? (
           <div className="p-8 text-center text-sm text-[#0F2942]/60">No students in this class.</div>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead className="table-head">
-                <tr>
-                  <th className="text-left px-4 py-3">#</th>
-                  <th className="text-left px-4 py-3">Roll No</th>
-                  <th className="text-left px-4 py-3">Student Name</th>
-                  <th className="text-center px-4 py-3">Status</th>
-                </tr>
-              </thead>
-              <tbody>
-                {students.map((s, idx) => {
-                  const current = attendance[s.id];
-                  return (
-                    <tr key={s.id} className="border-t border-[#E5E7EB]/40 hover:bg-white/40">
-                      <td className="px-4 py-3 text-[#0F2942]/50">{idx + 1}</td>
-                      <td className="px-4 py-3 font-mono text-xs text-[#0F2942]">{s.roll_number ?? '-'}</td>
-                      <td className="px-4 py-3 font-medium text-[#0F2942]">{s.full_name}</td>
-                      <td className="px-4 py-3">
-                        <div className="flex items-center justify-center gap-1.5">
-                          {['present', 'absent', 'late', 'excused'].map((st) => {
-                            const labels: any = { present: 'P', absent: 'A', late: 'L', excused: 'E' };
-                            const colors: any = {
-                              present: 'bg-emerald-500 text-white',
-                              absent: 'bg-red-500 text-white',
-                              late: 'bg-amber-500 text-white',
-                              excused: 'bg-blue-500 text-white',
-                            };
-                            return (
-                              <button
-                                key={st}
-                                onClick={() => setStatus(s.id, st as any)}
-                                className={cn(
-                                  'w-8 h-8 rounded-lg text-xs font-bold transition-all',
-                                  current === st ? colors[st] : 'bg-gray-100 text-gray-500 hover:bg-gray-200'
-                                )}
-                                title={st}
-                              >
-                                {labels[st]}
-                              </button>
-                            );
-                          })}
-                        </div>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
+          <div className="space-y-2 max-h-[600px] overflow-y-auto">
+            {students.map((s, idx) => {
+              const current = attendance[s.id] || 'unmarked';
+              const statusIcons: any = {
+                present: '✓',
+                absent: '✗',
+                late: '⏱',
+                excused: '📝',
+                unmarked: '-',
+              };
+
+              return (
+                <div key={s.id} className="flex items-center justify-between gap-4 p-3 rounded-lg border border-[#E5E7EB]/40 hover:bg-white/60 hover:border-[#D95D16]/30 transition-all group">
+                  <div className="flex items-center gap-3 flex-1 min-w-0">
+                    <span className="text-xs font-bold text-[#0F2942]/40 w-6 text-center">{idx + 1}</span>
+                    <div className="flex-1 min-w-0">
+                      <p className="font-semibold text-[#0F2942] truncate">{s.full_name}</p>
+                      {s.roll_number && <p className="text-xs text-[#0F2942]/50">Roll: {s.roll_number}</p>}
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-2 shrink-0">
+                    {/* Checkbox for Present */}
+                    <button
+                      onClick={() => setStatus(s.id, current === 'present' ? 'unmarked' : 'present')}
+                      className="flex items-center justify-center w-8 h-8 rounded-lg border-2 transition-all"
+                      style={{
+                        borderColor: current === 'present' ? '#10b981' : '#e5e7eb',
+                        backgroundColor: current === 'present' ? '#10b981' : 'white',
+                      }}
+                      title={`${s.full_name} - Mark as Present`}
+                    >
+                      {current === 'present' && <span className="text-white font-bold text-lg">✓</span>}
+                    </button>
+
+                    {/* Status quick buttons */}
+                    <div className="flex gap-1">
+                      {['absent', 'late', 'excused'].map((st) => {
+                        const colorMap: any = {
+                          absent: 'bg-red-100 text-red-700 border-red-200 hover:bg-red-200',
+                          late: 'bg-amber-100 text-amber-700 border-amber-200 hover:bg-amber-200',
+                          excused: 'bg-blue-100 text-blue-700 border-blue-200 hover:bg-blue-200',
+                        };
+                        const isActive = current === st;
+                        
+                        return (
+                          <button
+                            key={st}
+                            onClick={() => setStatus(s.id, isActive ? 'unmarked' : st as any)}
+                            className={cn(
+                              'px-2 py-1.5 rounded-lg text-xs font-bold border transition-all',
+                              isActive 
+                                ? colorMap[st].replace('hover:', '')
+                                : 'bg-gray-50 text-gray-600 border-gray-200 hover:bg-gray-100'
+                            )}
+                            title={`${s.full_name} - ${st.charAt(0).toUpperCase() + st.slice(1)}`}
+                          >
+                            {statusIcons[st]}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
           </div>
         )}
       </div>
@@ -289,8 +306,10 @@ function MarksEntry() {
   const [selectedClass, setSelectedClass] = useState('');
   const [selectedSubject, setSelectedSubject] = useState('');
   const [selectedTerm, setSelectedTerm] = useState('');
+  const [selectedStudents, setSelectedStudents] = useState<Student[]>([]);
+  const [searchStudent, setSearchStudent] = useState('');
   const [academicYear, setAcademicYear] = useState('2025-2026');
-  const [students, setStudents] = useState<Student[]>([]);
+  const [allStudents, setAllStudents] = useState<Student[]>([]);
   const [marks, setMarks] = useState<Record<string, string>>({});
   const [existingMarks, setExistingMarks] = useState<Record<string, any>>({});
   const [loading, setLoading] = useState(true);
@@ -323,10 +342,13 @@ function MarksEntry() {
     if (!selectedClass) return;
     setLoading(true);
     const { data: studs } = await supabase.from('students').select('*').eq('class_id', selectedClass).order('roll_number');
-    setStudents((studs as Student[]) ?? []);
+    setAllStudents((studs as Student[]) ?? []);
+    setSelectedStudents([]);
     setMarks({});
     setExistingMarks({});
     setFeedback(null);
+    setSearchStudent('');
+
     if (selectedSubject && selectedTerm) {
       const { data: existing } = await supabase
         .from('marks')
@@ -347,13 +369,30 @@ function MarksEntry() {
 
   useEffect(() => { loadStudents(); }, [loadStudents]);
 
+  const addStudent = (student: Student) => {
+    if (!selectedStudents.find(s => s.id === student.id)) {
+      setSelectedStudents([...selectedStudents, student]);
+    }
+    setSearchStudent('');
+  };
+
+  const removeStudent = (studentId: string) => {
+    setSelectedStudents(selectedStudents.filter(s => s.id !== studentId));
+  };
+
+  const filteredStudents = allStudents.filter(s => 
+    !selectedStudents.find(ss => ss.id === s.id) &&
+    (s.full_name.toLowerCase().includes(searchStudent.toLowerCase()) || 
+     (s.roll_number && s.roll_number.toString().includes(searchStudent)))
+  );
+
   const save = async (publish: boolean) => {
     if (!profile || !selectedClass || !selectedSubject || !selectedTerm) return;
     setSaving(true);
     const subject = subjects.find((s) => s.id === selectedSubject);
     const maxMarks = subject?.max_marks ?? 100;
 
-    for (const s of students) {
+    for (const s of selectedStudents) {
       const val = marks[s.id];
       if (val === undefined || val === '') continue;
       const numVal = Number(val);
@@ -386,7 +425,6 @@ function MarksEntry() {
     }
 
     if (publish) {
-      // Compute totals and ranks for this class/term/year
       const { data: allMarks } = await supabase
         .from('marks')
         .select('student_id, marks_obtained, max_marks')
@@ -405,7 +443,6 @@ function MarksEntry() {
         ranksMap[sid] = computeRank(totalsMap[sid], allTotals);
       });
 
-      // Generate AI feedback for each student
       const { data: subjectList } = await supabase
         .from('marks')
         .select('student_id, marks_obtained, max_marks, subjects(name)')
@@ -483,81 +520,73 @@ function MarksEntry() {
 
       {subject && (
         <div className="p-3 rounded-xl bg-[#FAF8F3] border border-[#E5E7EB]/40 text-sm text-[#0F2942]">
-          <span className="font-semibold">{subject.name}</span> | Max marks: {subject.max_marks} | Historical record: marks are unique per (student, subject, term, year) and never overwritten.
+          <span className="font-semibold">{subject.name}</span> | Max marks: {subject.max_marks}
         </div>
       )}
 
-      <div className="glass-card rounded-2xl overflow-hidden">
-        {loading ? (
-          <div className="p-8 text-center"><Loader2 className="w-6 h-6 animate-spin mx-auto text-[#D95D16]" /></div>
-        ) : students.length === 0 ? (
-          <div className="p-8 text-center text-sm text-[#0F2942]/60">Select a class to load students.</div>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead className="table-head">
-                <tr>
-                  <th className="text-left px-4 py-3">#</th>
-                  <th className="text-left px-4 py-3">Roll</th>
-                  <th className="text-left px-4 py-3">Student</th>
-                  <th className="text-left px-4 py-3">Marks (/{subject?.max_marks ?? 100})</th>
-                  <th className="text-left px-4 py-3">Status</th>
-                  {feedback && <th className="text-left px-4 py-3">AI Feedback & Rank</th>}
-                </tr>
-              </thead>
-              <tbody>
-                {students.map((s, idx) => {
-                  const ex = existingMarks[s.id];
-                  const fb = feedback?.[s.id];
-                  return (
-                    <tr key={s.id} className="border-t border-[#E5E7EB]/40 hover:bg-white/40">
-                      <td className="px-4 py-3 text-[#0F2942]/50">{idx + 1}</td>
-                      <td className="px-4 py-3 font-mono text-xs">{s.roll_number ?? '-'}</td>
-                      <td className="px-4 py-3 font-medium text-[#0F2942]">{s.full_name}</td>
-                      <td className="px-4 py-3">
-                        <Input
-                          type="number"
-                          min={0}
-                          max={subject?.max_marks ?? 100}
-                          value={marks[s.id] ?? ''}
-                          onChange={(e) => setMarks({ ...marks, [s.id]: e.target.value })}
-                          className="w-24 h-9"
-                          placeholder="0"
-                        />
-                      </td>
-                      <td className="px-4 py-3">
-                        {ex?.published ? <Badge className="badge-present">Published</Badge> : ex ? <Badge className="bg-amber-100 text-amber-800 border-amber-200">Draft</Badge> : <Badge className="bg-gray-100 text-gray-500 border-gray-200">New</Badge>}
-                      </td>
-                      {feedback && (
-                        <td className="px-4 py-3">
-                          {fb ? (
-                            <div className="space-y-1">
-                              <div className="flex items-center gap-2">
-                                <Badge className="bg-[#0F2942] text-white">Rank {fb.rank}/{fb.totalStudents}</Badge>
-                                <Badge className="bg-[#D95D16] text-white">{fb.grade}</Badge>
-                                <span className="text-xs font-semibold text-[#0F2942]">{fb.overallPercentage.toFixed(1)}%</span>
-                              </div>
-                              <p className="text-xs text-[#0F2942]/70">{fb.summary}</p>
-                              {fb.weaknesses.length > 0 && (
-                                <p className="text-xs text-amber-700">{fb.weaknesses.join(', ')}</p>
-                              )}
-                              {fb.strengths.length > 0 && (
-                                <p className="text-xs text-emerald-700">{fb.strengths.join(', ')}</p>
-                              )}
-                            </div>
-                          ) : <span className="text-xs text-[#0F2942]/40">No data</span>}
-                        </td>
-                      )}
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
+      {/* Student Selection */}
+      {!loading && allStudents.length > 0 && (
+        <div className="glass-card rounded-2xl p-4">
+          <Label className="text-base font-semibold">Select Students to Enter Marks</Label>
+          <div className="relative mt-2">
+            <Input
+              type="text"
+              placeholder="Search student name or roll number..."
+              value={searchStudent}
+              onChange={(e) => setSearchStudent(e.target.value)}
+              className="w-full"
+            />
+            {searchStudent && filteredStudents.length > 0 && (
+              <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-[#E5E7EB]/40 rounded-lg shadow-lg z-50 max-h-40 overflow-y-auto">
+                {filteredStudents.map((s) => (
+                  <button
+                    key={s.id}
+                    onClick={() => addStudent(s)}
+                    className="w-full text-left px-4 py-2 hover:bg-[#FAF8F3] border-b border-[#E5E7EB]/20 last:border-b-0 transition-all"
+                  >
+                    <span className="font-medium text-[#0F2942]">{s.full_name}</span>
+                    {s.roll_number && <span className="text-xs text-[#0F2942]/50 ml-2">(Roll: {s.roll_number})</span>}
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
-        )}
-      </div>
 
-      {students.length > 0 && (
+          {/* Selected Students List */}
+          {selectedStudents.length > 0 && (
+            <div className="mt-4 space-y-2">
+              <p className="text-sm font-semibold text-[#0F2942]">Selected Students ({selectedStudents.length})</p>
+              {selectedStudents.map((s) => (
+                <div key={s.id} className="flex items-center justify-between gap-3 p-3 rounded-lg bg-white/60 border border-[#E5E7EB]/40">
+                  <div>
+                    <p className="font-medium text-[#0F2942]">{s.full_name}</p>
+                    {s.roll_number && <p className="text-xs text-[#0F2942]/50">Roll: {s.roll_number}</p>}
+                  </div>
+                  <Input
+                    type="number"
+                    min={0}
+                    max={subject?.max_marks ?? 100}
+                    value={marks[s.id] ?? ''}
+                    onChange={(e) => setMarks({ ...marks, [s.id]: e.target.value })}
+                    placeholder="Marks"
+                    className="w-24 h-9"
+                  />
+                  <Button 
+                    variant="ghost" 
+                    size="sm"
+                    onClick={() => removeStudent(s.id)}
+                    className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                  >
+                    ✕
+                  </Button>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {selectedStudents.length > 0 && (
         <div className="flex gap-2">
           <Button onClick={() => save(false)} disabled={saving} variant="outline" className="border-[#D95D16] text-[#D95D16]">
             <Save className="w-4 h-4 mr-2" /> Save as Draft

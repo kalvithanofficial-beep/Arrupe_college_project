@@ -13,6 +13,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, Dialog
 import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/lib/auth-context';
+import { ManagePayments } from '@/components/dashboards/accountant-dashboard';
 import {
   Users, UserCog, Megaphone, CalendarPlus, GraduationCap, TrendingUp, UserPlus,
   ShieldCheck, BookOpen, Clock, AlertTriangle, Loader2, Power, KeyRound, Trash2,
@@ -30,6 +31,7 @@ export function AdminDashboard({ section }: AdminDashboardProps) {
   if (section === 'classes') return <ManageClasses />;
   if (section === 'notices') return <ManageNotices />;
   if (section === 'substitutions') return <ManageSubstitutions />;
+  if (section === 'payments') return <ManagePayments />;
   return <AdminOverview />;
 }
 
@@ -534,6 +536,8 @@ function ManageClasses() {
   const [assignOpen, setAssignOpen] = useState<string | null>(null);
   const [selectedTeacher, setSelectedTeacher] = useState('');
   const [subjectTeacher, setSubjectTeacher] = useState<Record<string, string>>({});
+  const [createOpen, setCreateOpen] = useState(false);
+  const [classForm, setClassForm] = useState({ name: '', grade: '', section: 'A', academic_year: '2025-2026' });
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -584,6 +588,36 @@ function ManageClasses() {
     load();
   };
 
+  const createClass = async () => {
+    if (!classForm.name || !classForm.grade || !classForm.section || !classForm.academic_year) {
+      toast({ title: 'Missing fields', variant: 'destructive' });
+      return;
+    }
+
+    const gradeValue = Number(classForm.grade);
+    if (Number.isNaN(gradeValue) || gradeValue <= 0) {
+      toast({ title: 'Invalid grade', description: 'Enter a valid numeric grade.', variant: 'destructive' });
+      return;
+    }
+
+    const { error } = await supabase.from('classes').insert({
+      name: classForm.name.trim(),
+      grade: gradeValue,
+      section: classForm.section.trim() || 'A',
+      academic_year: classForm.academic_year.trim() || '2025-2026',
+    });
+
+    if (error) {
+      toast({ title: 'Failed to create class', description: error.message, variant: 'destructive' });
+      return;
+    }
+
+    toast({ title: 'Class created', description: `${classForm.name} added successfully.` });
+    setCreateOpen(false);
+    setClassForm({ name: '', grade: '', section: 'A', academic_year: '2025-2026' });
+    load();
+  };
+
   const assignSubjectTeacher = async (classId: string, subjectId: string, teacherId: string) => {
     const existing = classSubjects.find((cs) => cs.class_id === classId && cs.subject_id === subjectId);
     if (existing) {
@@ -597,7 +631,41 @@ function ManageClasses() {
 
   return (
     <div className="space-y-4">
-      <h2 className="text-lg font-bold text-[#0F2942]">Classes & Teacher Allocation</h2>
+      <div className="flex items-center justify-between">
+        <h2 className="text-lg font-bold text-[#0F2942]">Classes & Teacher Allocation</h2>
+        <Dialog open={createOpen} onOpenChange={setCreateOpen}>
+          <DialogTrigger asChild>
+            <Button className="btn-amber">Create Class</Button>
+          </DialogTrigger>
+          <DialogContent className="sm:max-w-md">
+            <DialogHeader>
+              <DialogTitle>Create New Class</DialogTitle>
+            </DialogHeader>
+            <div className="space-y-3">
+              <div>
+                <Label>Name</Label>
+                <Input value={classForm.name} onChange={(e) => setClassForm({ ...classForm, name: e.target.value })} placeholder="Class name" />
+              </div>
+              <div>
+                <Label>Grade</Label>
+                <Input value={classForm.grade} type="number" onChange={(e) => setClassForm({ ...classForm, grade: e.target.value })} placeholder="6" />
+              </div>
+              <div>
+                <Label>Section</Label>
+                <Input value={classForm.section} onChange={(e) => setClassForm({ ...classForm, section: e.target.value })} placeholder="A" />
+              </div>
+              <div>
+                <Label>Academic Year</Label>
+                <Input value={classForm.academic_year} onChange={(e) => setClassForm({ ...classForm, academic_year: e.target.value })} placeholder="2025-2026" />
+              </div>
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setCreateOpen(false)}>Cancel</Button>
+              <Button onClick={createClass}>Create Class</Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      </div>
       {loading ? (
         <div className="glass-card rounded-2xl p-8 text-center"><Loader2 className="w-6 h-6 animate-spin mx-auto text-[#D95D16]" /></div>
       ) : (
