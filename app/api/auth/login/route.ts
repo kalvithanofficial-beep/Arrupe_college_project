@@ -1,54 +1,110 @@
-import { createHash } from 'crypto';
-import { NextResponse } from 'next/server';
+import { createClient } from '@supabase/supabase-js';
+import { NextRequest, NextResponse } from 'next/server';
 
-function createMockJwt(payload: Record<string, unknown>) {
-  const header = { alg: 'HS256', typ: 'JWT' };
-  const encode = (value: unknown) => Buffer.from(JSON.stringify(value)).toString('base64url');
-  const headerSegment = encode(header);
-  const payloadSegment = encode({
-    ...payload,
-    iat: Math.floor(Date.now() / 1000),
-    exp: Math.floor(Date.now() / 1000) + 60 * 60,
-  });
-  const signature = createHash('sha256')
-    .update(`${headerSegment}.${payloadSegment}.arrupe-master-secret`)
-    .digest('base64url');
-
-  return `${headerSegment}.${payloadSegment}.${signature}`;
-}
-
-export async function POST(request: Request) {
+export async function POST(request: NextRequest) {
   const body = await request.json().catch(() => ({}));
-  const email = typeof body?.email === 'string' ? body.email : '';
+  const email = typeof body?.email === 'string' ? body.email.trim().toLowerCase() : '';
   const password = typeof body?.password === 'string' ? body.password : '';
 
   if (email === 'kalvithanschool@gmail.com' && password === 'Kalvithan@School2026') {
-    const token = createMockJwt({
-      sub: 'master-admin',
+    const masterAdminUser = {
+      id: '00000000-0000-0000-0000-000000000000',
+      name: 'Administrator',
       email,
       role: 'Admin',
-      name: 'ARRUPE Master Admin',
-    });
+    };
 
     return NextResponse.json(
       {
         status: 'Success',
-        message: 'Mock admin session created',
-        token,
-        user: {
-          email,
-          role: 'Admin',
-        },
+        message: 'Master Admin Authenticated',
+        user: masterAdminUser,
       },
       { status: 200 }
     );
   }
 
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+
+  if (!supabaseUrl || !supabaseAnonKey) {
+    return NextResponse.json(
+      {
+        status: 'Error',
+        message: 'Authentication service is not configured.',
+      },
+      { status: 500 }
+    );
+  }
+
+  const supabase = createClient(supabaseUrl, supabaseAnonKey, {
+    auth: {
+      persistSession: false,
+      autoRefreshToken: false,
+    },
+  });
+
+  const { data: signInData, error: signInError } = await supabase.auth.signInWithPassword({
+    email,
+    password,
+  });
+
+  if (signInError || !signInData.user) {
+    return NextResponse.json(
+      {
+        status: 'Error',
+        message: signInError?.message || 'Invalid credentials',
+      },
+      { status: 401 }
+    );
+  }
+
+  const { data: profileData, error: profileError } = await supabase
+    .from('profiles')
+    .select('*')
+    .eq('id', signInData.user.id)
+    .maybeSingle();
+
+  if (profileError) {
+    return NextResponse.json(
+      {
+        status: 'Error',
+        message: 'Unable to load profile information.',
+      },
+      { status: 500 }
+    );
+  }
+
+  const profile = profileData as Record<string, unknown> | null;
+  const role = typeof profile?.role === 'string' ? profile.role : 'student';
+  const fullName = typeof profile?.full_name === 'string'
+    ? profile.full_name
+    : (typeof signInData.user.user_metadata?.full_name === 'string'
+      ? signInData.user.user_metadata.full_name
+      : email);
+  const status = typeof profile?.status === 'string' ? profile.status : 'active';
+
+  if (status !== 'active') {
+    return NextResponse.json(
+      {
+        status: 'Error',
+        message: 'Your account has been deactivated.',
+      },
+      { status: 403 }
+    );
+  }
+
   return NextResponse.json(
     {
-      status: 'Error',
-      message: 'Invalid credentials',
+      status: 'Success',
+      message: 'Authenticated',
+      user: {
+        id: signInData.user.id,
+        name: fullName,
+        email,
+        role,
+      },
     },
-    { status: 401 }
+    { status: 200 }
   );
 }
