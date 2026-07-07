@@ -17,6 +17,8 @@ export function DashboardShell({ role, children }: DashboardShellProps) {
   const router = useRouter();
   const { user, profile, loading } = useAuth();
   const [activeSection, setActiveSection] = useState('overview');
+  const normalizedRole = String(role || '').toLowerCase();
+  const profileRole = String(profile?.role || '').toLowerCase();
 
   useEffect(() => {
     if (!loading) {
@@ -24,11 +26,11 @@ export function DashboardShell({ role, children }: DashboardShellProps) {
         router.replace('/');
         return;
       }
-      if (profile.role !== role) {
-        router.replace(`/dashboard/${profile.role}`);
+      if (profileRole !== normalizedRole) {
+        router.replace(`/dashboard/${profileRole || normalizedRole}`);
       }
     }
-  }, [loading, user, profile, role, router]);
+  }, [loading, user, profile, profileRole, normalizedRole, router]);
 
   if (loading || !user || !profile) {
     return (
@@ -49,11 +51,11 @@ export function DashboardShell({ role, children }: DashboardShellProps) {
             <div className="ml-12 lg:ml-0">
               <h1 className="text-xl font-bold text-[#0F2942] capitalize">
                 {activeSection === 'overview'
-                  ? `${roleLabel(profile.role)} Dashboard`
+                  ? `${roleLabel(profileRole as any)} Dashboard`
                   : activeSection.replace('-', ' ')}
               </h1>
               <p className="text-xs text-[#0F2942]/60 hidden sm:block">
-                ARRUPE College, Batticaloa - Portal | Welcome back, {profile.full_name}
+                ARRUPE College, Batticaloa - Portal | Welcome back, {profile.full_name || profile.email}
               </p>
             </div>
           </div>

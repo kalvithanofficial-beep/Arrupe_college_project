@@ -39,31 +39,38 @@ function AdminOverview() {
 
   useEffect(() => {
     (async () => {
-      const [u, t, s, c, n, sub] = await Promise.all([
-        supabase.from('profiles').select('id', { count: 'exact', head: true }),
-        supabase.from('profiles').select('id', { count: 'exact', head: true }).eq('role', 'teacher'),
-        supabase.from('students').select('id', { count: 'exact', head: true }),
-        supabase.from('classes').select('id', { count: 'exact', head: true }),
-        supabase.from('notices').select('id', { count: 'exact', head: true }).eq('is_active', true),
-        supabase.from('substitutions').select('id', { count: 'exact', head: true }).eq('status', 'active'),
-      ]);
-      setStats({
-        users: u.count ?? 0,
-        teachers: t.count ?? 0,
-        students: s.count ?? 0,
-        classes: c.count ?? 0,
-        notices: n.count ?? 0,
-        substitutions: sub.count ?? 0,
-      });
+      try {
+        const [u, t, s, c, n, sub] = await Promise.all([
+          supabase.from('profiles').select('id', { count: 'exact', head: true }),
+          supabase.from('profiles').select('id', { count: 'exact', head: true }).eq('role', 'teacher'),
+          supabase.from('students').select('id', { count: 'exact', head: true }),
+          supabase.from('classes').select('id', { count: 'exact', head: true }),
+          supabase.from('notices').select('id', { count: 'exact', head: true }).eq('is_active', true),
+          supabase.from('substitutions').select('id', { count: 'exact', head: true }).eq('status', 'active'),
+        ]);
+        setStats({
+          users: u.count ?? 0,
+          teachers: t.count ?? 0,
+          students: s.count ?? 0,
+          classes: c.count ?? 0,
+          notices: n.count ?? 0,
+          substitutions: sub.count ?? 0,
+        });
 
-      const [ru, rn, rs] = await Promise.all([
-        supabase.from('profiles').select('*').order('created_at', { ascending: false }).limit(5),
-        supabase.from('notices').select('*').order('created_at', { ascending: false }).limit(5),
-        supabase.from('substitutions').select('*, classes(name), subjects(name), profiles!substitutions_acting_teacher_id_fkey(full_name)').order('created_at', { ascending: false }).limit(5),
-      ]);
-      setRecentUsers((ru.data as Profile[]) ?? []);
-      setRecentNotices((rn.data as Notice[]) ?? []);
-      setRecentSubs(rs.data ?? []);
+        const [ru, rn, rs] = await Promise.all([
+          supabase.from('profiles').select('*').order('created_at', { ascending: false }).limit(5),
+          supabase.from('notices').select('*').order('created_at', { ascending: false }).limit(5),
+          supabase.from('substitutions').select('*, classes(name), subjects(name), profiles!substitutions_acting_teacher_id_fkey(full_name)').order('created_at', { ascending: false }).limit(5),
+        ]);
+        setRecentUsers((ru.data as Profile[]) ?? []);
+        setRecentNotices((rn.data as Notice[]) ?? []);
+        setRecentSubs(rs.data ?? []);
+      } catch {
+        setStats({ users: 0, teachers: 0, students: 0, classes: 0, notices: 0, substitutions: 0 });
+        setRecentUsers([]);
+        setRecentNotices([]);
+        setRecentSubs([]);
+      }
     })();
   }, []);
 
@@ -213,9 +220,15 @@ function ManageUsers() {
 
   const load = useCallback(async () => {
     setLoading(true);
-    const { data } = await supabase.from('profiles').select('*').order('created_at', { ascending: false });
-    setUsers((data as Profile[]) ?? []);
-    setLoading(false);
+    try {
+      const { data, error } = await supabase.from('profiles').select('*').order('created_at', { ascending: false });
+      if (error) throw error;
+      setUsers((data as Profile[]) ?? []);
+    } catch {
+      setUsers([]);
+    } finally {
+      setLoading(false);
+    }
   }, []);
 
   useEffect(() => { load(); }, [load]);
@@ -443,22 +456,30 @@ function ManageClasses() {
 
   const load = useCallback(async () => {
     setLoading(true);
-    const [{ data: cls }, { data: tch }, { data: sub }, { data: cs }] = await Promise.all([
-      supabase.from('classes').select('*').order('grade'),
-      supabase.from('profiles').select('*').eq('role', 'teacher').eq('status', 'active'),
-      supabase.from('subjects').select('*'),
-      supabase.from('class_subjects').select('*, subjects(name), profiles(full_name)'),
-    ]);
+    try {
+      const [{ data: cls }, { data: tch }, { data: sub }, { data: cs }] = await Promise.all([
+        supabase.from('classes').select('*').order('grade'),
+        supabase.from('profiles').select('*').eq('role', 'teacher').eq('status', 'active'),
+        supabase.from('subjects').select('*'),
+        supabase.from('class_subjects').select('*, subjects(name), profiles(full_name)'),
+      ]);
 
-    const clsWithTeacher = (cls ?? []).map((c: any) => {
-      const t = (tch ?? []).find((x: any) => x.id === c.class_teacher_id);
-      return { ...c, teacher_name: t?.full_name ?? null };
-    });
-    setClasses(clsWithTeacher as any);
-    setTeachers(tch as Profile[] ?? []);
-    setSubjects(sub as Subject[] ?? []);
-    setClassSubjects(cs ?? []);
-    setLoading(false);
+      const clsWithTeacher = (cls ?? []).map((c: any) => {
+        const t = (tch ?? []).find((x: any) => x.id === c.class_teacher_id);
+        return { ...c, teacher_name: t?.full_name ?? null };
+      });
+      setClasses(clsWithTeacher as any);
+      setTeachers((tch as Profile[]) ?? []);
+      setSubjects((sub as Subject[]) ?? []);
+      setClassSubjects(cs ?? []);
+    } catch {
+      setClasses([]);
+      setTeachers([]);
+      setSubjects([]);
+      setClassSubjects([]);
+    } finally {
+      setLoading(false);
+    }
   }, []);
 
   useEffect(() => { load(); }, [load]);
@@ -578,9 +599,15 @@ function ManageNotices() {
 
   const load = useCallback(async () => {
     setLoading(true);
-    const { data } = await supabase.from('notices').select('*').order('created_at', { ascending: false });
-    setNotices((data as Notice[]) ?? []);
-    setLoading(false);
+    try {
+      const { data, error } = await supabase.from('notices').select('*').order('created_at', { ascending: false });
+      if (error) throw error;
+      setNotices((data as Notice[]) ?? []);
+    } catch {
+      setNotices([]);
+    } finally {
+      setLoading(false);
+    }
   }, []);
 
   useEffect(() => { load(); }, [load]);
@@ -713,17 +740,25 @@ function ManageSubstitutions() {
 
   const load = useCallback(async () => {
     setLoading(true);
-    const [c, s, t, sub] = await Promise.all([
-      supabase.from('classes').select('*').order('grade'),
-      supabase.from('subjects').select('*'),
-      supabase.from('profiles').select('*').eq('role', 'teacher').eq('status', 'active'),
-      supabase.from('substitutions').select('*, classes(name), subjects(name), profiles!substitutions_absent_teacher_id_fkey(full_name), profiles!substitutions_acting_teacher_id_fkey(full_name)').order('created_at', { ascending: false }),
-    ]);
-    setClasses(c.data as SchoolClass[] ?? []);
-    setSubjects(s.data as Subject[] ?? []);
-    setTeachers(t.data as Profile[] ?? []);
-    setSubs(sub.data ?? []);
-    setLoading(false);
+    try {
+      const [c, s, t, sub] = await Promise.all([
+        supabase.from('classes').select('*').order('grade'),
+        supabase.from('subjects').select('*'),
+        supabase.from('profiles').select('*').eq('role', 'teacher').eq('status', 'active'),
+        supabase.from('substitutions').select('*, classes(name), subjects(name), profiles!substitutions_absent_teacher_id_fkey(full_name), profiles!substitutions_acting_teacher_id_fkey(full_name)').order('created_at', { ascending: false }),
+      ]);
+      setClasses((c.data as SchoolClass[]) ?? []);
+      setSubjects((s.data as Subject[]) ?? []);
+      setTeachers((t.data as Profile[]) ?? []);
+      setSubs(sub.data ?? []);
+    } catch {
+      setClasses([]);
+      setSubjects([]);
+      setTeachers([]);
+      setSubs([]);
+    } finally {
+      setLoading(false);
+    }
   }, []);
 
   useEffect(() => { load(); }, [load]);

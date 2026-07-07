@@ -11,7 +11,7 @@ export async function POST(request: NextRequest) {
       id: '00000000-0000-0000-0000-000000000000',
       name: 'Administrator',
       email,
-      role: 'Admin',
+      role: 'admin',
     };
 
     return NextResponse.json(
@@ -27,22 +27,33 @@ export async function POST(request: NextRequest) {
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
-  if (!supabaseUrl || !supabaseAnonKey) {
+  if (!supabaseUrl || !supabaseAnonKey || supabaseUrl.includes('your-project') || supabaseAnonKey.includes('your-anon-key')) {
     return NextResponse.json(
       {
         status: 'Error',
-        message: 'Authentication service is not configured.',
+        message: 'Supabase credentials are not configured correctly.',
       },
       { status: 500 }
     );
   }
 
-  const supabase = createClient(supabaseUrl, supabaseAnonKey, {
-    auth: {
-      persistSession: false,
-      autoRefreshToken: false,
-    },
-  });
+  let supabase;
+  try {
+    supabase = createClient(supabaseUrl, supabaseAnonKey, {
+      auth: {
+        persistSession: false,
+        autoRefreshToken: false,
+      },
+    });
+  } catch {
+    return NextResponse.json(
+      {
+        status: 'Error',
+        message: 'Supabase authentication is unavailable right now.',
+      },
+      { status: 500 }
+    );
+  }
 
   const { data: signInData, error: signInError } = await supabase.auth.signInWithPassword({
     email,

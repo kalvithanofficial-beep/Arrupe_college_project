@@ -11,7 +11,7 @@ import { Loader2 } from 'lucide-react';
 
 export default function DashboardPage() {
   const params = useParams();
-  const role = params.role as string;
+  const role = String(params.role || '').toLowerCase();
 
   const validRoles = ['admin', 'accountant', 'teacher', 'student', 'parent'];
   if (!validRoles.includes(role)) {
