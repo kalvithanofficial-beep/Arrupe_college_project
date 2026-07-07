@@ -12,7 +12,7 @@ import { useToast } from '@/hooks/use-toast';
 
 export default function LoginPage() {
   const router = useRouter();
-  const { user, profile, loading } = useAuth();
+  const { user, profile, loading, setAuthState } = useAuth();
   const { toast } = useToast();
 
   const [email, setEmail] = useState('');
@@ -51,20 +51,24 @@ export default function LoginPage() {
 
       const role = String(data.user?.role || 'student').toLowerCase();
       const normalizedRole = role === 'admin' ? 'admin' : role;
-      const profile = {
+      const nextProfile = {
         id: data.user?.id || email,
         email: data.user?.email || email,
         role: normalizedRole,
         full_name: data.user?.name || email,
         status: 'active',
-      };
+      } as any;
 
-      if (typeof window !== 'undefined') {
-        window.localStorage.setItem(
-          'arrupe-auth-session',
-          JSON.stringify({ user: { id: profile.id, email: profile.email }, profile })
-        );
-      }
+      const nextUser = {
+        id: nextProfile.id,
+        email: nextProfile.email,
+        app_metadata: { provider: 'email' },
+        user_metadata: { full_name: nextProfile.full_name },
+        aud: 'authenticated',
+        created_at: new Date().toISOString(),
+      } as any;
+
+      setAuthState(nextUser, nextProfile, null, false);
 
       toast({ title: 'Welcome back!', description: `Signed in as ${normalizedRole}` });
       router.replace(`/dashboard/${normalizedRole}`);

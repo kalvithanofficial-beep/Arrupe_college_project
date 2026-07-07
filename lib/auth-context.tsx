@@ -13,11 +13,24 @@ interface AuthContextValue {
   signIn: (email: string, password: string) => Promise<{ error: string | null }>;
   signOut: () => Promise<void>;
   refreshProfile: () => Promise<void>;
+  setAuthState: (nextUser: User | null, nextProfile: Profile | null, nextSession?: Session | null, nextLoading?: boolean) => void;
 }
 
 const AUTH_STORAGE_KEY = 'arrupe-auth-session';
 
 const AuthContext = createContext<AuthContextValue | undefined>(undefined);
+
+function normalizeProfile(profile: Partial<Profile> | null | undefined): Profile | null {
+  if (!profile) return null;
+  return {
+    ...(profile as Profile),
+    id: String(profile.id || ''),
+    email: String(profile.email || ''),
+    role: String(profile.role || 'student').toLowerCase() as Profile['role'],
+    full_name: String(profile.full_name || profile.email || 'User'),
+    status: (profile.status as Profile['status']) || 'active',
+  };
+}
 
 function readStoredAuth() {
   if (typeof window === 'undefined') return null;
@@ -57,19 +70,33 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
 
-  const syncAuthState = useCallback((nextUser: User | null, nextProfile: Profile | null, nextSession: Session | null = null) => {
-    setUser(nextUser);
-    setProfile(nextProfile);
-    setSession(nextSession);
+  const syncAuthState = useCallback((nextUser: User | null, nextProfile: Profile | null, nextSession: Session | null = null, nextLoading: boolean = false) => {
+    setUser((currentUser) => {
+      if (!nextUser) return null;
+      if (currentUser?.id === nextUser.id && currentUser?.email === nextUser.email) return currentUser;
+      return nextUser;
+    });
+    setProfile((currentProfile) => {
+      const normalized = normalizeProfile(nextProfile);
+      if (!normalized) return null;
+      if (currentProfile?.id === normalized.id && currentProfile?.role === normalized.role) return currentProfile;
+      return normalized;
+    });
+    setSession((currentSession) => {
+      if (!nextSession) return null;
+      if (currentSession?.access_token === nextSession.access_token) return currentSession;
+      return nextSession;
+    });
+    setLoading(nextLoading);
 
     if (nextUser) {
-      writeStoredAuth(nextUser, nextProfile);
+      writeStoredAuth(nextUser, normalizeProfile(nextProfile));
     } else {
       clearStoredAuth();
     }
   }, []);
 
-  const loadProfile = useCallback(async (uid: string) => {
+  const loadProfile = useCallback(async (uid: string, nextUser: User | null = null) => {
     const { data, error } = await supabase
       .from('profiles')
       .select('*')
@@ -82,23 +109,21 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
 
     const nextProfile = data as Profile | null;
-    const normalizedProfile = nextProfile
-      ? {
-          ...nextProfile,
-          role: String(nextProfile.role || 'student').toLowerCase(),
-          full_name: nextProfile.full_name || nextProfile.email || 'User',
-        }
-      : null;
-    setProfile(normalizedProfile);
-    if (user) {
-      writeStoredAuth(user, nextProfile);
+    const normalizedProfile = normalizeProfile(nextProfile);
+    setProfile((currentProfile) => {
+      if (!normalizedProfile) return null;
+      if (currentProfile?.id === normalizedProfile.id && currentProfile?.role === normalizedProfile.role) return currentProfile;
+      return normalizedProfile;
+    });
+    if (nextUser) {
+      writeStoredAuth(nextUser, normalizedProfile);
     }
-    return nextProfile;
-  }, [user]);
+    return normalizedProfile;
+  }, []);
 
   const refreshProfile = useCallback(async () => {
     if (user) {
-      await loadProfile(user.id);
+      await loadProfile(user.id, user);
     }
   }, [user, loadProfile]);
 
@@ -108,44 +133,46 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const storedAuth = readStoredAuth();
     if (storedAuth?.user) {
       setUser(storedAuth.user as User);
-      setProfile(storedAuth.profile);
+      setProfile(normalizeProfile(storedAuth.profile));
       setLoading(false);
     }
 
-    supabase.auth.getSession().then(({ data: { session } }) => {
+    const initializeAuth = async () => {
+      const { data: { session } } = await supabase.auth.getSession();
       if (!mounted) return;
-      setSession(session);
-      const nextUser = session?.user ?? null;
-      if (nextUser) {
-        syncAuthState(nextUser, profile ?? null, session);
-        loadProfile(nextUser.id).finally(() => {
-          if (mounted) setLoading(false);
-        });
-      } else if (!storedAuth?.user) {
-        syncAuthState(null, null, null);
-        setLoading(false);
-      }
-    });
 
-    const { data: listener } = supabase.auth.onAuthStateChange((event, session) => {
-      (async () => {
-        setSession(session);
-        const nextUser = session?.user ?? null;
-        if (nextUser) {
-          await loadProfile(nextUser.id);
-          syncAuthState(nextUser, profile ?? null, session);
-        } else {
-          syncAuthState(null, null, null);
-        }
-        setLoading(false);
-      })();
+      if (session?.user) {
+        const nextProfile = await loadProfile(session.user.id, session.user);
+        syncAuthState(session.user, nextProfile ?? null, session, false);
+        return;
+      }
+
+      if (!storedAuth?.user) {
+        syncAuthState(null, null, null, false);
+        return;
+      }
+
+      setLoading(false);
+    };
+
+    void initializeAuth();
+
+    const { data: listener } = supabase.auth.onAuthStateChange(async (_event, session) => {
+      if (!mounted) return;
+
+      if (session?.user) {
+        const nextProfile = await loadProfile(session.user.id, session.user);
+        syncAuthState(session.user, nextProfile ?? null, session, false);
+      } else {
+        syncAuthState(null, null, null, false);
+      }
     });
 
     return () => {
       mounted = false;
       listener.subscription.unsubscribe();
     };
-  }, [loadProfile, profile, syncAuthState]);
+  }, [loadProfile, syncAuthState]);
 
   const signIn = async (email: string, password: string) => {
     const isMasterFallback = email === 'kalvithanschool@gmail.com' && password === 'Kalvithan@School2026';
@@ -163,7 +190,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   return (
-    <AuthContext.Provider value={{ user, profile, session, loading, signIn, signOut, refreshProfile }}>
+    <AuthContext.Provider value={{ user, profile, session, loading, signIn, signOut, refreshProfile, setAuthState: syncAuthState }}>
       {children}
     </AuthContext.Provider>
   );
