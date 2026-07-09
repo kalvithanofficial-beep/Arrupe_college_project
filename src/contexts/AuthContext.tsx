@@ -200,13 +200,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   async function signOut() {
     try {
       await supabase.auth.signOut();
+      window.location.href = '/';
     } catch (err) {
       console.error('Sign out failed:', err);
     } finally {
       setUser(null);
       setSession(null);
       setProfile(null);
-      window.location.assign('/login');
     }
   }
 

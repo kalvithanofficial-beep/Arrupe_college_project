@@ -153,17 +153,25 @@ export default function LoginPage() {
     setError('');
     setLoading(true);
 
+    const trimmedEmail = email.trim();
+    console.log('Attempting login for:', trimmedEmail);
+
     try {
       const { error: authError } = await supabase.auth.signInWithPassword({
-        email: email.trim(),
+        email: trimmedEmail,
         password,
       });
 
-      if (authError) throw authError;
+      if (authError) {
+        console.error('Login error:', authError.message);
+        throw authError;
+      }
 
-      window.location.href = '/dashboard';
+      console.log('Login success for:', trimmedEmail);
+      window.location.href = '/';
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : String(err);
+      console.error('Login exception:', errorMessage);
       setError(errorMessage || 'Invalid email or password.');
     } finally {
       setLoading(false);
