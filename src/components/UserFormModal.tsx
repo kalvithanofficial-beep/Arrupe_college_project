@@ -21,7 +21,7 @@ export default function UserFormModal({
   onClose,
   onSubmit,
   title,
-  submitButtonText = 'Send Invitation',
+  submitButtonText = 'Create User',
   initialData,
   isEdit = false,
   allowedRoles = ['student', 'teacher', 'accountant', 'admin'],
@@ -37,6 +37,7 @@ export default function UserFormModal({
     address: initialData?.address || '',
     religion: initialData?.religion || '',
     role: initialData?.role || allowedRoles[0] || 'student',
+    password: initialData?.password || '',
   });
 
   const [loading, setLoading] = useState(false);
@@ -57,6 +58,7 @@ export default function UserFormModal({
       address: initialData?.address || '',
       religion: initialData?.religion || '',
       role: initialData?.role || allowedRoles[0] || 'student',
+      password: initialData?.password || '',
     });
   }, [initialData, allowedRoles, isOpen]);
 
@@ -69,6 +71,7 @@ export default function UserFormModal({
     if (!formData.first_name || !formData.first_name.trim()) { setError('First name is required'); return; }
     if (!formData.last_name || !formData.last_name.trim()) { setError('Last name is required'); return; }
     if (!formData.email.trim()) { setError('Email is required'); return; }
+    if (!formData.password || !formData.password.trim()) { setError('Password is required'); return; }
     if (!formData.phone.trim()) { setError('Mobile number is required'); return; }
     if (!formData.age.trim()) { setError('Age is required'); return; }
     if (!formData.date_of_birth) { setError('Date of birth is required'); return; }
@@ -96,6 +99,7 @@ export default function UserFormModal({
         address: '',
         religion: '',
         role: allowedRoles[0] || 'student',
+        password: '',
       });
 
     } catch (err) {
@@ -137,10 +141,7 @@ export default function UserFormModal({
             </div>
           )}
 
-          <div className="bg-sky-50 border border-sky-200 px-4 py-3 rounded-lg text-sm">
-            <p className="font-medium text-sky-900 mb-1">✉️ Invitation-based onboarding</p>
-            <p className="text-sky-800">The invited person will receive a secure email link to set their own password and access the portal.</p>
-          </div>
+          {/* Password field added for admin-created initial password */}
 
           {/* Name Row */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -193,6 +194,21 @@ export default function UserFormModal({
                 disabled={loading}
               />
             </div>
+          </div>
+
+          {/* Password Row */}
+          <div className="mt-2">
+            <label className="block text-sm font-medium text-slate-700 mb-1.5">Password *</label>
+            <input
+              type="password"
+              value={formData.password}
+              onChange={e => setFormData({ ...formData, password: e.target.value })}
+              className="input-field"
+              placeholder="Set an initial password"
+              disabled={loading || isEdit}
+              required
+              autoComplete={isEdit ? 'new-password' : 'new-password'}
+            />
           </div>
 
           {/* Age & Gender Row */}

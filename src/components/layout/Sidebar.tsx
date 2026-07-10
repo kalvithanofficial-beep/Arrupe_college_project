@@ -93,16 +93,17 @@ const ROLE_SUBTITLES: Record<string, string> = {
 interface SidebarProps {
   currentPage: string;
   onNavigate: (page: string) => void;
+  isOpen: boolean;
 }
 
-export default function Sidebar({ currentPage, onNavigate }: SidebarProps) {
+export default function Sidebar({ currentPage, onNavigate, isOpen }: SidebarProps) {
   const { role, signOut, profile } = useAuth();
 
   const { items, restricted } = getNavItems(role);
   const subtitle = role ? ROLE_SUBTITLES[role] : 'School Management';
 
   return (
-    <aside className="w-[260px] bg-navy-900 flex flex-col h-screen sticky top-0 shrink-0 shadow-xl">
+    <aside className={`fixed inset-y-0 left-0 z-40 w-[260px] bg-navy-900 flex flex-col h-full shadow-xl transform transition-transform duration-300 ease-in-out md:static md:translate-x-0 md:h-screen ${isOpen ? 'translate-x-0' : '-translate-x-full'}`}>
       {/* Brand */}
       <div className="p-5 border-b border-white/10">
         <div className="flex items-center gap-3">

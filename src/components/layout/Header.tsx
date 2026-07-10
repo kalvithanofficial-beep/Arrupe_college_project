@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Search, Bell, HelpCircle, ChevronDown, User } from 'lucide-react';
+import { Search, Bell, HelpCircle, ChevronDown, User, Menu } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 
 const ROLE_LABELS: Record<string, string> = {
@@ -12,9 +12,10 @@ const ROLE_LABELS: Record<string, string> = {
 
 interface HeaderProps {
   title?: string;
+  onToggleSidebar: () => void;
 }
 
-export default function Header({ title }: HeaderProps) {
+export default function Header({ title, onToggleSidebar }: HeaderProps) {
   const { profile, role, signOut } = useAuth();
   const [showDropdown, setShowDropdown] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
@@ -22,7 +23,15 @@ export default function Header({ title }: HeaderProps) {
   const roleLabel = role ? ROLE_LABELS[role] ?? role : '';
 
   return (
-    <header className="h-16 bg-white border-b border-slate-200 flex items-center px-6 gap-4 sticky top-0 z-20">
+    <header className="h-16 bg-white border-b border-slate-200 flex items-center px-4 sm:px-6 gap-4 sticky top-0 z-20">
+      <button
+        type="button"
+        className="inline-flex items-center justify-center p-2 text-slate-600 rounded-lg hover:bg-slate-100 hover:text-navy-900 transition-colors md:hidden"
+        onClick={onToggleSidebar}
+      >
+        <Menu size={20} />
+      </button>
+
       {/* Search */}
       <div className="flex-1 max-w-xl">
         <div className="relative">

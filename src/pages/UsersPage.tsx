@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Users, Plus, Trash2, Search, AlertCircle, Edit3 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
+import { createClient } from '@supabase/supabase-js';
 import { useAuth, UserFormData } from '../contexts/AuthContext';
 import { UserRole } from '../types';
 import UserFormModal from '../components/UserFormModal';
@@ -69,18 +70,70 @@ export default function UsersPage() {
   async function handleCreateUser(formData: UserFormData) {
     try {
       setError('');
-      const { error: err } = await createUserByAdmin(formData);
 
-      if (err) {
-        throw err;
+      const supabaseAdmin = createClient(
+        import.meta.env.VITE_SUPABASE_URL as string,
+        import.meta.env.VITE_SUPABASE_ANON_KEY as string,
+        { auth: { persistSession: false } }
+      );
+
+      // Create the user in GoTrue/Auth
+      const { data: signUpData, error: signUpErr } = await supabaseAdmin.auth.signUp({
+        email: formData.email,
+        password: formData.password || '',
+      });
+
+      if (signUpErr) {
+        console.error('supabaseAdmin.signUp error:', signUpErr);
+        alert('Error creating user');
+        setError(signUpErr.message || 'Failed to create auth user');
+        return;
       }
 
-      setSuccess(`User ${formData.first_name} ${formData.last_name} created successfully!`);
+      const createdUserId = signUpData?.user?.id ?? (signUpData as any)?.id ?? null;
+      if (!createdUserId) {
+        console.error('No user id returned from signUp', signUpData);
+        alert('Error creating user');
+        setError('No user id returned from auth');
+        return;
+      }
+
+      // Insert profile using the primary client
+      const firstName = formData.firstName ?? formData.first_name ?? '';
+      const lastName = formData.lastName ?? formData.last_name ?? '';
+      const fullName = `${firstName} ${lastName}`.trim();
+      const insertPayload = {
+        id: createdUserId,
+        email: formData.email,
+        role: formData.role,
+        first_name: firstName,
+        last_name: lastName,
+        full_name: fullName,
+        gender: formData.gender || null,
+        phone: formData.phone || null,
+        age: formData.age ? Number(formData.age) : null,
+        religion: formData.religion || null,
+        address: formData.address || null,
+      };
+
+      const { error: insertErr } = await supabase.from('profiles').insert([insertPayload]);
+
+      if (insertErr) {
+        console.error('profiles.insert error:', insertErr);
+        alert('Error creating user profile');
+        setError(insertErr.message || 'Failed to insert profile');
+        return;
+      }
+
+      alert('User created successfully');
+      setSuccess(`User ${fullName} created successfully!`);
       setShowModal(false);
       setEditingUser(null);
       setTimeout(() => setSuccess(''), 3000);
       await fetchUsers();
     } catch (err) {
+      console.error('handleCreateUser exception:', err);
+      alert('Error creating user');
       setError((err as Error).message || 'Failed to create user.');
     }
   }
@@ -329,7 +382,7 @@ export default function UsersPage() {
         onClose={handleCloseModal}
         onSubmit={editingUser ? (formData => handleUpdateUser(editingUser.id, formData)) : handleCreateUser}
         title={editingUser ? 'Edit User' : role === 'teacher' ? 'Add New Student' : 'Create New User'}
-        submitButtonText={editingUser ? 'Save Changes' : 'Send Invitation'}
+        submitButtonText={editingUser ? 'Save Changes' : 'Create User'}
         initialData={editingUser ?? undefined}
         isEdit={Boolean(editingUser)}
         allowedRoles={manageable_roles}
